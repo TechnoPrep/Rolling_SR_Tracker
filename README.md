@@ -25,7 +25,7 @@
   This application is intended to be used as a tool for Raider Leaders / Loot Masters to determine how many consecutive weeks a raider has Soft Reserved an Item
 
   ### YouTube Run and Use Instructions
-  [![YouTube How to Video](https://img.https://youtu.be/C0v5JycfmRM/0.jpg)](https://youtu.be/C0v5JycfmRM)
+  [YouTube How to Video](https://youtu.be/C0v5JycfmRM)
             
   ## Credits
   No Credits Applicable
