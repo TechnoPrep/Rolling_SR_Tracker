@@ -90,6 +90,42 @@ function createHashLootPreviousWeeks(sheetName) {
   return thisWeeksLootMap;
 }
 
+// Check to see if the raider was there a week prior to the current week being checked. 
+// Used to check to see if they SR'd the item selected X weeks back from the last time they showed up.
+// Each week missed will be -1 from their 
+function checkTwoWeeksPriorLoot(currentWeeksRaider, raiderName, sheetArray, itemId ,index, loopCount){
+
+  var nextIndex = index + 1
+  var isLastSheet = nextIndex == sheetArray.length ? true : false
+
+  //Check if this is the last sheet in the sheetArray
+  if(!isLastSheet){
+    var previousWeekSheetName = sheetArray[nextIndex]
+    var previousWeekSheetLoot = createHashLootPreviousWeeks(previousWeekSheetName);
+    var twoWeeksPriorRaider = previousWeekSheetLoot[raiderName]
+
+    // Check if raider exists an additional week back
+    if(twoWeeksPriorRaider){
+      // Check if the itemId exists in that raider from the additional week back
+      if(itemId in twoWeeksPriorRaider){
+        // Subtract loopCount from currentWeeksRaider[itemId].itemSrCount if they will not push it below 1, if they do, return 1
+        return (loopCount - currentWeeksRaider[itemId].itemSrCount) < 1 ? currentWeeksRaider[itemId].itemSrCount -= loopCount : 1;
+      }
+      // Return the itemSrCount - This is due to the raider existing, but they SR'd a different item after they came back
+      // Do not want to pentalize them for new SR's since their absence, since when they SR a new item, it wipes the SR count.
+      return currentWeeksRaider[itemId].itemSrCount
+    } else {
+      // If the raider doesn't exist keep checking previous weeks, until they are found or we run out of sheets.
+      loopCount++
+      checkTwoWeeksPriorLoot(currentWeeksRaider, raiderName, sheetArray, itemId, nextIndex, loopCount)
+    } 
+  } 
+
+  // If it is the last sheet, just return the current currentWeeksRaider[itemId].itemSrCount
+  return currentWeeksRaider[itemId].itemSrCount
+
+}
+
 // Compare Each Previous Week SR sheet to the Current SR Sheet
 function compareCurrentAndPreviousWeeksLoot() {
   var sheetArray = getSheetRange();
@@ -99,20 +135,23 @@ function compareCurrentAndPreviousWeeksLoot() {
   for (var i = 1; i < sheetArray.length; i++) {
     var sheetName = sheetArray[i];
     var sheetLoot = createHashLootPreviousWeeks(sheetName);
-
+    
     // Iterate through Each Raider
     for (var raiderName in currentWeeksRaiderLoot) {
       // Find the raiderName Obj from the Previous Raid weeks Sheet
       var previousWeekRaiderObj = sheetLoot[raiderName];
 
-      // Raider doesn't exist for the items they SR'd this current week in previous weeks, mark missedItemPreviousWeek to true 
+      // If the raiders doesn't exist at all in the previous week
       if (!previousWeekRaiderObj) {
+        // If they dont exist, mark them as missing a week
         for (var itemId in currentWeeksRaiderLoot[raiderName]){
-          currentWeeksRaiderLoot[raiderName][itemId].missedItemPreviousWeek = true;
+          // If a raider misses 1 week
+          // If the item they have SR'd has been sr'd by them for more than 1 week in a row
+          currentWeeksRaiderLoot[raiderName][itemId].itemSrCount = checkTwoWeeksPriorLoot(currentWeeksRaiderLoot[raiderName], raiderName, sheetArray, itemId, i, 1)
         }
         continue;
       }
-
+      
       // Iterate through each item object on the currentWeeksRaiderLoot
       for (var itemId in currentWeeksRaiderLoot[raiderName]) {
         // If the itemId exists in the previous weerks Raider Object
@@ -149,12 +188,12 @@ function writecurrentWeeksRaiderLootToSheet(){
     var raiderObj = raiderLootToAppend[raiderName]
 
     items = Object.keys(raiderObj)
-
+    Logger.log(items)
     items.forEach(item => {
       var itemName = raiderObj[item].itemName
       var itemSrCount = raiderObj[item].itemSrCount == 0 || raiderObj[item].itemSrCount == 1 ? "No Rolling SR Bonus" : raiderObj[item].itemSrCount * 10
       masterSheet.appendRow([raiderName, itemName, itemSrCount])
-    });
+    })
     
   }
 }
