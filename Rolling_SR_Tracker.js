@@ -1,9 +1,27 @@
+/**
+ * Version 1.0 2023/01/12
+ *  - Initial Creation
+ * 
+ * Version 2.0 2023/01/21
+ *  - Updated logic to only subtract 10 from a raiders Rolling SR if they miss a week
+ *    rather that wiping their Soft Reserves.
+ * 
+ * Version 3.0 2023/01/22
+ *  - Updated writing to the Master Sheet to sort Raiders by name.
+*/
+
 // Set this Variable based on your Sheet URL
 var spreadSheetAURL = "https://docs.google.com/spreadsheets/d/1klN8yDL4q9ldKrVtoUbOhSi2JdF-Q2C0WjEN-DKtdJ4/edit";
 // How many weeks you want to track rolling SR
 var weeksForRollingSr = 10
+var weeksChecked = 0
 
-// Get all Sheets from your Document
+/**
+ * Returns an array of sheet names from a specific spreadsheet, filtered by a certain number of weeks.
+ * @param {number} weeksForRollingSr - The number of weeks to filter the sheet names by.
+ * @param {string} spreadSheetAURL - The URL of the specific spreadsheet from which the sheet names are retrieved.
+ * @returns {array} An array of sheet names.
+ */
 function getSheetRange() {
   
   var sheetNameArray = [];
@@ -30,7 +48,11 @@ function getSheetRange() {
 
 }
 
-// Create a Hashmap of Each Raider from this week with their Items they have SR'd
+/**
+ * Returns a hash map of current week's loot, grouping items by raider's name and item Id.
+ * @param {string} spreadSheetAURL - The URL of the specific spreadsheet from which the sheet names are retrieved.
+ * @returns {object} An object that contains a hash map of current week's loot, grouped by raider and item Id.
+ */
 function createHashLootCurrentWeek() {
   var currentWeeksLootSheet = getSheetRange()[0];
   var currentLootMap = {};
@@ -62,7 +84,12 @@ function createHashLootCurrentWeek() {
   return currentLootMap;
 }
 
-// Create a Hashmap of Each Raider from the week passed through and their Items they have SR'd
+/**
+ * Returns a hash map of previous week's loot, grouping items by raider's name and item Id.
+ * @param {string} sheetName - The name of the sheet that contains the data of previous week's loot.
+ * @param {string} spreadSheetAURL - The URL of the specific spreadsheet from which the sheet names are retrieved.
+ * @returns {object} An object that contains a hash map of previous week's loot, grouped by raider and item Id.
+ */
 function createHashLootPreviousWeeks(sheetName) {
   var sheet = SpreadsheetApp.openByUrl(spreadSheetAURL).getSheetByName(sheetName);
   var data = sheet.getDataRange().getValues();
@@ -90,9 +117,17 @@ function createHashLootPreviousWeeks(sheetName) {
   return thisWeeksLootMap;
 }
 
-// Check to see if the raider was there a week prior to the current week being checked. 
-// Used to check to see if they SR'd the item selected X weeks back from the last time they showed up.
-// Each week missed will be -1 from their 
+/**
+ * Check if the raider was present in the loot sheet two weeks prior to the current week being checked.
+ * If the raider was present, it will return the itemSrCount -1 for each week missed.
+ * @param {object} currentWeeksRaider - The current week's raider loot map.
+ * @param {string} raiderName - The name of the raider being checked.
+ * @param {array} sheetArray - An array of sheet names that contains the data of previous weeks' loot.
+ * @param {number} itemId - The ID of the item being checked.
+ * @param {number} index - The current index of the sheetArray that is being checked.
+ * @param {number} loopCount - The number of weeks missed by the raider.
+ * @returns {number} The itemSrCount for the current week's raider and itemId.
+ */
 function checkTwoWeeksPriorLoot(currentWeeksRaider, raiderName, sheetArray, itemId ,index, loopCount){
 
   var nextIndex = index + 1
@@ -108,7 +143,7 @@ function checkTwoWeeksPriorLoot(currentWeeksRaider, raiderName, sheetArray, item
     if(twoWeeksPriorRaider){
       // Check if the itemId exists in that raider from the additional week back
       if(itemId in twoWeeksPriorRaider){
-        // Subtract loopCount from currentWeeksRaider[itemId].itemSrCount if they will not push it below 1, if they do, return 1
+        // Subtract loopCount from currentWeeksRaider[itemId].itemSrCount if they will not push it below 1, if they do, return 
         return (loopCount - currentWeeksRaider[itemId].itemSrCount) < 1 ? currentWeeksRaider[itemId].itemSrCount -= loopCount : 1;
       }
       // Return the itemSrCount - This is due to the raider existing, but they SR'd a different item after they came back
@@ -126,7 +161,12 @@ function checkTwoWeeksPriorLoot(currentWeeksRaider, raiderName, sheetArray, item
 
 }
 
-// Compare Each Previous Week SR sheet to the Current SR Sheet
+/**
+ * Compare the current week's loot sheet with the previous weeks' loot sheets, and return a hash map of current week's 
+ * loot with updated itemSrCount and missedItemPreviousWeek properties.
+ * @returns {object} An object that contains a hash map of current week's loot,
+ * grouped by raider and item Id, with updated itemSrCount and missedItemPreviousWeek properties.
+ */
 function compareCurrentAndPreviousWeeksLoot() {
   var sheetArray = getSheetRange();
   var currentWeeksRaiderLoot = createHashLootCurrentWeek();
@@ -172,27 +212,33 @@ function compareCurrentAndPreviousWeeksLoot() {
   return currentWeeksRaiderLoot;
 }
 
-// Write each Raider, their SR'd item and what their SR Bonus is to a line 
+/**
+ * Writes the current week's raider loot information to the 'Master Sheet' by sorting the raider's loot by alphabetical order, 
+ * appending the header rows, and then appending the raider and item information along with the calculated rolling SR bonus.
+ * @returns {void}
+ */
 function writecurrentWeeksRaiderLootToSheet(){
-  var raiderLootToAppend = compareCurrentAndPreviousWeeksLoot()
+  var raiderLootToAppend = compareCurrentAndPreviousWeeksLoot();
   var masterSheet = SpreadsheetApp.openByUrl(spreadSheetAURL).getSheetByName('Master Sheet');
 
+  var sortedLootMap = Object.fromEntries(Object.entries(raiderLootToAppend).sort((a, b) => a[0].localeCompare(b[0])));
+
   // Clear all rows before appending Data
-  masterSheet.clear()
+  masterSheet.clear();
 
   // Append Header Rows
-  masterSheet.appendRow(['Raider Name', 'Item Name', 'Rolling SR Bonus'])
+  masterSheet.appendRow(['Raider Name', 'Item Name', 'Rolling SR Bonus']);
 
   // Iterate through each raider object
-  for (var raiderName in raiderLootToAppend){
-    var raiderObj = raiderLootToAppend[raiderName]
+  for (var raiderName in sortedLootMap){
+    var raiderObj = sortedLootMap[raiderName];
 
     items = Object.keys(raiderObj)
     Logger.log(items)
     items.forEach(item => {
-      var itemName = raiderObj[item].itemName
-      var itemSrCount = raiderObj[item].itemSrCount == 0 || raiderObj[item].itemSrCount == 1 ? "No Rolling SR Bonus" : raiderObj[item].itemSrCount * 10
-      masterSheet.appendRow([raiderName, itemName, itemSrCount])
+      var itemName = raiderObj[item].itemName;
+      var itemSrCount = raiderObj[item].itemSrCount == 0 || raiderObj[item].itemSrCount == 1 ? "No Rolling SR Bonus" : raiderObj[item].itemSrCount * 10;
+      masterSheet.appendRow([raiderName, itemName, itemSrCount]);
     })
     
   }
